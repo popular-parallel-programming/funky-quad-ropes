@@ -46,7 +46,7 @@ module QuadRope =
     open Shim
 
     type _ quad_rope =
-      | Funk : ('a -> 'b) * 'a quad_rope * 'b quad_rope lazy_t -> 'b quad_rope
+      | Funk : (int -> int -> 'a -> 'b) * 'a quad_rope * 'b quad_rope lazy_t -> 'b quad_rope
       | Leaf : 'a Array2D.array2d -> 'a quad_rope
       | HCat : 'a quad_rope * 'a quad_rope -> 'a quad_rope
       | VCat : 'a quad_rope * 'a quad_rope -> 'a quad_rope
@@ -87,38 +87,30 @@ module QuadRope =
       in init 0 0 rows cols
 
 
-    let rec map : 'a 'b . ('a -> 'b) -> 'a quad_rope -> 'b quad_rope =
-      fun f -> (function
-                | Funk (g, q, thunk) ->
-                   if Lazy.is_val thunk then
-                     let q = Lazy.force_val thunk in
-                     Funk (f, q, lazy (map f q))
-                   else
-                     let k = f >> g in
-                     Funk (k, q, lazy (map k q))
-                | Leaf xss -> Leaf (Array2D.map f xss)
-                | HCat (q1, q2) -> HCat (map f q1, map f q2)
-                | VCat (q1, q2) -> VCat (map f q1, map f q2)
-                | Sparse (r, c, x) -> Sparse (r, c, f x))
-
-
     let mapi f =
-      let rec mapi r0 c0 = function
-        | Funk (g, q, thunk) -> mapi r0 c0 (Lazy.force_val thunk)
-        | Leaf xss           -> Leaf (Array2D.mapi (fun r c x -> f (r0 + r) (c0 + c) x) xss)
-        | HCat (q1, q2)      -> HCat (mapi r0 c0 q1, mapi r0 (c0 + cols q1) q2)
-        | VCat (q1, q2)      -> VCat (mapi r0 c0 q1, mapi (r0 + rows q1) c0 q2)
-        | Sparse (r, c, x)   -> init r c (fun r c -> f (r0 + r) (c0 + c) x)
-      in mapi 0 0
+      let rec mapi_inner : 'a 'b . int -> int -> (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
+        fun r0 c0 f -> (function
+                        | Funk (g, q, thunk) ->
+                           if Lazy.is_val thunk then
+                             let p = Lazy.force_val thunk in
+                             Funk (f, p, lazy (mapi_inner r0 c0 f p))
+                           else
+                             let k = (fun r c x -> f r c (g r c x))
+                             in Funk (k, q, lazy (mapi_inner r0 c0 k q))
+                        | Leaf xss         -> Leaf (Array2D.mapi (fun r c x -> f (r0 + r) (c0 + c) x) xss)
+                        | HCat (q1, q2)    -> HCat (mapi_inner r0 c0 f q1, mapi_inner r0 (c0 + cols q1) f q2)
+                        | VCat (q1, q2)    -> VCat (mapi_inner r0 c0 f q1, mapi_inner (r0 + rows q1) c0 f q2)
+                        | Sparse (r, c, x) -> init r c (fun r c -> f (r0 + r) (c0 + c) x))
+      in mapi_inner 0 0 f
 
 
+    let map f = mapi (fun r c x -> f x)
     let replicate rows cols x = Sparse (rows, cols, x)
 
 
     let lazy_init rows cols (f : int -> int -> 'a) =
-      let p = replicate rows cols () in                                      (* Just for shape. *)
-      let q = mapi (fun r c _ -> (r, c)) $ Funk ((fun x -> x), p, lazy p) in (* For index pairs. *)
-      let g = uncurry f in                                                   (* Tupled variant of f *)
-      Funk (g, q, lazy (map g q))
+      let p = replicate rows cols () in
+      let g = fun r c _ -> f r c in
+      Funk (g, p, lazy (mapi g p))
 
   end

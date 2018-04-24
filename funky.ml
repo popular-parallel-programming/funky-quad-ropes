@@ -88,20 +88,20 @@ module QuadRope =
 
 
     let mapi f =
-      let rec mapi_inner : 'a 'b . int -> int -> (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
+      let rec mapii : 'a 'b . int -> int -> (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
         fun r0 c0 f -> (function
                         | Funk (g, q, thunk) ->
                            if Lazy.is_val thunk then
                              let p = Lazy.force_val thunk in
-                             Funk (f, p, lazy (mapi_inner r0 c0 f p))
+                             Funk (f, p, lazy (mapii r0 c0 f p))
                            else
                              let k = (fun r c x -> f r c (g r c x))
-                             in Funk (k, q, lazy (mapi_inner r0 c0 k q))
+                             in Funk (k, q, lazy (mapii r0 c0 k q))
                         | Leaf xss         -> Leaf (Array2D.mapi (fun r c x -> f (r0 + r) (c0 + c) x) xss)
-                        | HCat (q1, q2)    -> HCat (mapi_inner r0 c0 f q1, mapi_inner r0 (c0 + cols q1) f q2)
-                        | VCat (q1, q2)    -> VCat (mapi_inner r0 c0 f q1, mapi_inner (r0 + rows q1) c0 f q2)
+                        | HCat (q1, q2)    -> HCat (mapii r0 c0 f q1, mapii r0 (c0 + cols q1) f q2)
+                        | VCat (q1, q2)    -> VCat (mapii r0 c0 f q1, mapii (r0 + rows q1) c0 f q2)
                         | Sparse (r, c, x) -> init r c (fun r c -> f (r0 + r) (c0 + c) x))
-      in mapi_inner 0 0 f
+      in mapii 0 0 f
 
 
     let map f = mapi (fun r c x -> f x)

@@ -137,4 +137,19 @@ module QuadRope =
       | Sparse (_, _, x)   -> x
 
 
+    let rec slice  : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 r1 c0 c1 ->
+      let r0, c0 = max 0 r0, max 0 c0 in
+      let r1, c1 = min (rows q - r0) (max 0 r1), min (cols q - c0) (max 0 c1) in
+      match q with
+      | Funk (f, p, thunk) -> funky_mapi f $ slice p r0 r1 c0 c1
+      | Leaf xss -> Leaf (Array2D.slice xss r0 r1 c0 c1)
+      | HCat (q1, q2) ->
+         let q1' = slice q1 r0 r1 c0 c1 in
+         let q2' = slice q2 r0 r1 (c0 - cols q1) (c1 - cols q1') in
+         hcat q1' q2'
+      | VCat (q1, q2) ->
+         let q1' = slice q1 r0 r1 c0 c1 in
+         let q2' = slice q2 (r0 - rows q1) (r1 - rows q1') c0 c1 in
+         vcat q1' q2'
+      | Sparse (_, _, x) -> replicate r1 c1 x
   end

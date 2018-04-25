@@ -147,7 +147,7 @@ module QuadRope =
       | Sparse (_, _, x)   -> x
 
 
-    let rec slice  : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 r1 c0 c1 ->
+    let rec slice : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 r1 c0 c1 ->
       let r0, c0 = max 0 r0, max 0 c0 in
       let r1, c1 = min (rows q - r0) (max 0 r1), min (cols q - c0) (max 0 c1) in
       match q with

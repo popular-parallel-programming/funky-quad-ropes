@@ -39,6 +39,16 @@ module Array2D =
 
     let slice (xss : _ array2d) r0 r1 c0 c1 =
       init r1 c1 $ fun r c -> get xss (r0 + r) (c0 + c)
+
+    let mapi_reduce f g e (xss : _ array2d) =
+      let rec loop r c acc =
+        if c = cols xss then loop (r + 1) 0 acc else (* Next row. *)
+        if r = rows xss then acc else                (* Done. *)
+        loop r (c + 1) (g acc (f r c (get xss r c))) (* Next column. *)
+      in loop 0 0 e
+
+    let map_reduce f = mapi_reduce (fun _ _ x -> f x)
+    let reduce = map_reduce (fun x -> x)
   end
 
 
@@ -152,4 +162,32 @@ module QuadRope =
          let q2' = slice q2 (r0 - rows q1) (r1 - rows q1') c0 c1 in
          vcat q1' q2'
       | Sparse (_, _, x) -> replicate r1 c1 x
+
+
+    let mapi_reduce f g e q =
+      let sparse_loop (Sparse (rows, cols, x)) r0 c0 f g e =
+        let rec loop r c acc =
+          if c = rows then loop (r + 1) 0 acc else       (* Next row. *)
+          if r = cols then acc else                      (* Done. *)
+          loop r (c + 1) (g acc (f (r + r0) (c + c0) x)) (* Next column. *)
+        in loop 0 0 e
+      in
+      let rec mapi_reduce_i : 'a 'b . int -> int -> (int -> int -> 'a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a quad_rope -> 'b =
+        fun r0 c0 f g e ->
+        (function
+         | Funk (k, q, thunk) ->
+            if Lazy.is_val thunk then
+              mapi_reduce_i r0 c0 f g e $ Lazy.force_val thunk
+            else
+              let h = fun r c x -> f r c (k r c x) in
+              mapi_reduce_i r0 c0 h g e q
+         | Leaf xss      -> Array2D.mapi_reduce (fun r c x -> f (r0 + r) (c0 + c) x) g e xss
+         | HCat (q1, q2) -> g (mapi_reduce_i r0 c0 f g e q1) (mapi_reduce_i r0 (c0 + cols q1) f g e q2)
+         | VCat (q1, q2) -> g (mapi_reduce_i r0 c0 f g e q1) (mapi_reduce_i (r0 + rows q1) c0 f g e q2)
+         | Sparse (r, c, x) as q -> sparse_loop q r0 c0 f g e) (* TODO: Add recursive splitting. *)
+      in mapi_reduce_i 0 0 f g e q
+
+
+    let map_reduce f = mapi_reduce (fun _ _ x -> f x)
+    let reduce = map_reduce (fun x -> x)
   end

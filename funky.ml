@@ -94,11 +94,10 @@ module QuadRope =
         fun r0 c0 f -> (function
                         | Funk (g, q, thunk) ->
                            if Lazy.is_val thunk then
-                             let p = Lazy.force_val thunk in
-                             Funk (f, p, lazy (mapii r0 c0 f p))
+                             mapii r0 c0 f $ Lazy.force_val thunk
                            else
-                             let k = (fun r c x -> f r c (g r c x))
-                             in Funk (k, q, lazy (mapii r0 c0 k q))
+                             let k = fun r c x -> f r c (g r c x) in
+                             mapii r0 c0 k q
                         | Leaf xss         -> Leaf (Array2D.mapi (fun r c x -> f (r0 + r) (c0 + c) x) xss)
                         | HCat (q1, q2)    -> HCat (mapii r0 c0 f q1, mapii r0 (c0 + cols q1) f q2)
                         | VCat (q1, q2)    -> VCat (mapii r0 c0 f q1, mapii (r0 + rows q1) c0 f q2)
@@ -106,13 +105,36 @@ module QuadRope =
       in mapii 0 0 f
 
 
+    let rec funky_mapi : 'a 'b . (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
+      fun f -> (function
+                | Funk (g, q, thunk) ->
+                   if Lazy.is_val thunk then
+                     funky_mapi f $ Lazy.force_val thunk
+                   else
+                     funky_mapi (fun r c x -> f r c (g r c x)) q
+                | q -> Funk (f, q, lazy (mapi f q)))
+
+
     let map f = mapi (fun r c x -> f x)
-    let replicate rows cols x = Sparse (rows, cols, x)
+    let funky_map f = funky_mapi (fun r c x -> f x)
 
 
-    let lazy_init rows cols (f : int -> int -> 'a) =
+    let replicate rows cols x = Sparse (max 0 rows, max 0 cols, x)
+
+
+    let funky_init rows cols f =
       let p = replicate rows cols () in
       let g = fun r c _ -> f r c in
-      Funk (g, p, lazy (mapi g p))
+      funky_mapi g p
+
+
+    let rec get q r c =
+      match q with
+      | Funk (_, _, thunk) -> get (Lazy.force_val thunk) r c
+      | Leaf xss           -> Array2D.get xss r c
+      | HCat (q1, q2)      -> if c < cols q1 then get q1 r c else get q2 r (c - cols q1)
+      | VCat (q1, q2)      -> if r < rows q1 then get q1 r c else get q2 (r - rows q1) c
+      | Sparse (_, _, x)   -> x
+
 
   end

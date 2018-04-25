@@ -17,7 +17,7 @@ module Array2D =
     open Shim
 
     let init rows cols f : _ array2d =
-      Array.init rows (fun i -> Array.init cols (f i))
+      Array.init rows $ fun i -> Array.init cols (f i)
 
     let get (xss : _ array2d) i j =
       Array.get (Array.get xss i) j
@@ -37,6 +37,8 @@ module Array2D =
     let cols (xss : _ array2d) = (* Assume all columns are of equal length. *)
       Array.length $ Array.get xss 0
 
+    let slice (xss : _ array2d) r0 r1 c0 c1 =
+      init r1 c1 $ fun r c -> get xss (r0 + r) (c0 + c)
   end
 
 

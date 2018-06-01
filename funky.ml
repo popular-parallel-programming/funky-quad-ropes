@@ -188,7 +188,7 @@ module QuadRope =
 
 
     let mapi_reduce f g e q =
-      let sparse_loop (Sparse (rows, cols, x)) r0 c0 f g e =
+      let sparse_loop rows cols x r0 c0 f g e =
         let rec loop r c acc =
           if c = rows then loop (r + 1) 0 acc else       (* Next row. *)
           if r = cols then acc else                      (* Done. *)
@@ -207,7 +207,7 @@ module QuadRope =
          | Leaf xss      -> Array2D.mapi_reduce (fun r c x -> f (r0 + r) (c0 + c) x) g e xss
          | HCat (q1, q2) -> g (mapi_reduce_i r0 c0 f g e q1) (mapi_reduce_i r0 (c0 + cols q1) f g e q2)
          | VCat (q1, q2) -> g (mapi_reduce_i r0 c0 f g e q1) (mapi_reduce_i (r0 + rows q1) c0 f g e q2)
-         | Sparse (r, c, x) as q -> sparse_loop q r0 c0 f g e) (* TODO: Add recursive splitting. *)
+         | Sparse (r, c, x) -> sparse_loop r c x r0 c0 f g e) (* TODO: Add recursive splitting. *)
       in mapi_reduce_i 0 0 f g e q
 
 

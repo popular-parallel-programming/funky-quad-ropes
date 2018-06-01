@@ -1,1 +1,7 @@
-PKG benchmark
+B /home/fbie/.opam/system/lib/benchmark
+B /usr/lib/ocaml
+B _build/default/.funky.eobjs
+FLG -w -40
+S .
+S /home/fbie/.opam/system/lib/benchmark
+S /usr/lib/ocaml

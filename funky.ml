@@ -9,46 +9,78 @@ module Shim =
       fun (x, y) -> f x y
   end
 
+(* Signature for two-dimensional collections.  *)
+module type Collection2D =
+  sig
+    type 'a t
+    val init : int -> int -> (int -> int -> 'a) -> 'a t
+    val get : 'a t -> int -> int -> 'a
+    val rows : _ t -> int
+    val cols : _ t -> int
+    val map : ('a -> 'b) -> 'a t -> 'b t
+    val zipWith : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+    val slice : 'a t -> int -> int -> int -> int -> 'a t
+    val map_reduce : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a t -> 'b
+    val reduce : ('a -> 'a -> 'a) -> 'a -> 'a t -> 'a
+  end
+
 
 module Array2D =
   struct
-    type 'a array2d = 'a array array
+    type 'a t = 'a array array
 
     open Shim
 
-    let init rows cols f : _ array2d =
+    let init rows cols f : _ =
       Array.init rows $ fun i -> Array.init cols (f i)
 
-    let get (xss : _ array2d) i j =
+
+    let get (xss : _ t) i j =
       Array.get (Array.get xss i) j
 
-    let map f xss : _ array2d =
+
+    let map f xss : _ t =
       Array.map (fun xs -> Array.map f xs) xss
 
-    let mapi f xss : _ array2d =
+
+    let mapi f xss : _ t =
       Array.mapi (fun i xs -> Array.mapi (fun j x -> f i j x) xs) xss
 
-    let zipWith f (xss0 : _ array2d) (xss1 : _ array2d) : _ array2d =
+
+    let zipWith f (xss0 : _ t) (xss1 : _ t) : _ t =
       mapi (fun i j x -> f x (get xss1 i j)) xss0
 
-    let rows (xss : _ array2d) =
+
+    let zipWithi f (xss0 : _ t) (xss1 : _ t) : _ t =
+      mapi (fun i j x -> f i j x (get xss1 i j)) xss0
+
+
+    let rows (xss : _ t) =
       Array.length xss
 
-    let cols (xss : _ array2d) = (* Assume all columns are of equal length. *)
+
+    let cols (xss : _ t) = (* Assume all columns are of equal length. *)
       Array.length $ Array.get xss 0
 
-    let slice (xss : _ array2d) r0 r1 c0 c1 =
+
+    let slice (xss : _ t) r0 r1 c0 c1 =
       init r1 c1 $ fun r c -> get xss (r0 + r) (c0 + c)
 
-    let mapi_reduce f g e (xss : _ array2d) =
+
+    let mapi_reduce (f : int -> int -> 'a -> 'b) (g : 'b -> 'b -> 'b) (e : 'b) (xss : 'a t) : 'b =
       let rec loop r c acc =
         if c = cols xss then loop (r + 1) 0 acc else (* Next row. *)
         if r = rows xss then acc else                (* Done. *)
         loop r (c + 1) (g acc (f r c (get xss r c))) (* Next column. *)
       in loop 0 0 e
 
-    let map_reduce f = mapi_reduce (fun _ _ x -> f x)
-    let reduce = map_reduce (fun x -> x)
+
+    let map_reduce f =
+      mapi_reduce (fun _ _ x -> f x)
+
+
+    let reduce f =
+      mapi_reduce (fun _ _ x -> x) f
   end
 
 

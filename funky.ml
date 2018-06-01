@@ -138,7 +138,7 @@ module QuadRope =
 
 
     let init rows cols f =
-      let max_size = 4 in
+      let max_size = 32 in
       let rec init row_off col_off rows cols =
         if rows < max_size && cols < max_size then
           Leaf (Array2D.init rows cols (fun r c -> f (r + row_off) (c + col_off)))

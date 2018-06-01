@@ -22,6 +22,7 @@ module type Collection2D =
     val slice : 'a t -> int -> int -> int -> int -> 'a t
     val map_reduce : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a t -> 'b
     val reduce : ('a -> 'a -> 'a) -> 'a -> 'a t -> 'a
+    val transpose : 'a t -> 'a t
   end
 
 
@@ -60,7 +61,7 @@ module Array2D =
 
 
     let cols (xss : _ t) = (* Assume all columns are of equal length. *)
-      Array.length $ Array.get xss 0
+      if rows xss = 0 then 0 else Array.length $ Array.get xss 0
 
 
     let slice (xss : _ t) r0 r1 c0 c1 =
@@ -68,11 +69,13 @@ module Array2D =
 
 
     let mapi_reduce (f : int -> int -> 'a -> 'b) (g : 'b -> 'b -> 'b) (e : 'b) (xss : 'a t) : 'b =
-      let rec loop r c acc =
-        if c = cols xss then loop (r + 1) 0 acc else (* Next row. *)
-        if r = rows xss then acc else                (* Done. *)
-        loop r (c + 1) (g acc (f r c (get xss r c))) (* Next column. *)
-      in loop 0 0 e
+      let acc = ref e in
+      for r = 0 to rows xss - 1 do
+        for c = 0 to cols xss - 1 do
+          acc := g !acc (f r c (get xss r c));
+        done;
+      done;
+      !acc
 
 
     let map_reduce f =
@@ -81,6 +84,9 @@ module Array2D =
 
     let reduce f =
       mapi_reduce (fun _ _ x -> x) f
+
+    let transpose xs =
+      init (cols xs) (rows xs) (fun c r -> get xs r c)
   end
 
 
@@ -189,11 +195,13 @@ module QuadRope =
 
     let mapi_reduce f g e q =
       let sparse_loop rows cols x r0 c0 f g e =
-        let rec loop r c acc =
-          if c = rows then loop (r + 1) 0 acc else       (* Next row. *)
-          if r = cols then acc else                      (* Done. *)
-          loop r (c + 1) (g acc (f (r + r0) (c + c0) x)) (* Next column. *)
-        in loop 0 0 e
+        let acc = ref e in
+        for r = r0 to r0 + rows - 1 do
+          for c = c0 to c0 + cols - 1 do
+            acc := g !acc (f r c x);
+          done;
+        done;
+        !acc
       in
       let rec mapi_reduce_i : 'a 'b . int -> int -> (int -> int -> 'a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a quad_rope -> 'b =
         fun r0 c0 f g e ->
@@ -219,21 +227,25 @@ module QuadRope =
       map_reduce (fun x -> x) f
 
 
-    let rec slice : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 r1 c0 c1 ->
+    let rec slice : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 c0 r1 c1 ->
       let r0, c0 = max 0 r0, max 0 c0 in
       let r1, c1 = min (rows q - r0) (max 0 r1), min (cols q - c0) (max 0 c1) in
       match q with
-      | Funk (f, p, thunk) -> mapi f $ slice p r0 r1 c0 c1
-      | Leaf xss -> Leaf (Array2D.slice xss r0 r1 c0 c1)
+      | Funk (f, p, thunk) -> mapi f $ slice p r0 c0 r1 c1
+      | Leaf xss -> Leaf (Array2D.slice xss r0 c0 r1 c1)
       | HCat (q1, q2) ->
-         let q1' = slice q1 r0 r1 c0 c1 in
-         let q2' = slice q2 r0 r1 (c0 - cols q1) (c1 - cols q1') in
+         let q1' = slice q1 r0 c0 r1 c1 in
+         let q2' = slice q2 r0 (c0 - cols q1) r1 (c1 - cols q1') in
          hcat q1' q2'
       | VCat (q1, q2) ->
-         let q1' = slice q1 r0 r1 c0 c1 in
-         let q2' = slice q2 (r0 - rows q1) (r1 - rows q1') c0 c1 in
+         let q1' = slice q1 r0 c0 r1 c1 in
+         let q2' = slice q2 (r0 - rows q1) c0 (r1 - rows q1') c1 in
          vcat q1' q2'
       | Sparse (_, _, x) -> replicate r1 c1 x
+
+
+    let transpose q =
+      init (cols q) (rows q) (fun c r -> get q r c)
   end
 
 
@@ -298,23 +310,31 @@ module Funky =
     let mapi_reduce = QuadRope.mapi_reduce
     let map_reduce  = QuadRope.map_reduce
     let reduce      = QuadRope.reduce
+
+    let transpose = QuadRope.transpose
   end
 
 
-module Pearsons(M : Collection2D) =
+module Test(M : Collection2D) =
   struct
     open Shim
 
     let sum =
       M.reduce ( +. ) 0.
 
-    let size xs =
-      M.rows xs * M.cols xs
+    let mmult lm rm =
+      let trm =  M.transpose rm in
+      M.init (M.rows lm)
+             (M.cols rm)
+             (fun i j ->
+               let lr = M.slice lm  i 0 1 (M.cols lm) in
+               let rr = M.slice trm j 0 1 (M.cols trm) in
+               sum (M.zipWith ( *. ) lr rr))
 
-    let mean xs =
-      M.reduce ( +. ) 0. xs /. float (size xs)
 
     let pearsons xs ys =
+      let size = fun xs -> M.rows xs * M.cols xs in
+      let mean = fun xs -> M.reduce ( +. ) 0. xs /. float (size xs) in
       let x_mean  = mean xs in
       let y_mean  = mean ys in
       let x_err   = M.map (fun x -> x -. x_mean) xs in
@@ -323,19 +343,40 @@ module Pearsons(M : Collection2D) =
       let y_sqerr = M.map (fun y -> y -. y_mean ** 2.) ys in
       (sum (M.zipWith ( *.) x_err y_err)) /. (sqrt (sum x_sqerr) *. sqrt (sum y_sqerr))
 
-    let test rows cols =
-      let xs = M.init rows cols (fun _ _ -> Random.float 1000.) in
-      let ys = M.init rows cols (fun _ _ -> Random.float 1000.) in
-      pearsons xs ys
+
+    let test f rows cols =
+      let xs = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
+      let ys = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
+      f xs ys
+
+    let test_mmult = test mmult
+    let test_pearsons = test pearsons
+
   end
 
-module PearsonsArray2D = Pearsons(Array2D)
-module PearsonsQR      = Pearsons(QuadRope)
-module PearsonsFunky   = Pearsons(Funky)
+
+module Test_Array2D = Test(Array2D)
+module Test_QR      = Test(QuadRope)
+module Test_Funky   = Test(Funky)
 
 open Benchmark
-let () =
-  let res = latencyN (Int64.of_int 10) [("pearsons array2d",   (fun x -> PearsonsArray2D.test x x), 100);
-                                        ("pearsons quad_rope", (fun x -> PearsonsQR.test x x),      100);
-                                        ("pearsons funky",     (fun x -> PearsonsFunky.test x x), 100)] in
+
+let benchmark_mmult () =
+  let res = latencyN (Int64.of_int 100) [("array2d",   (fun x -> ignore (Test_Array2D.test_mmult x x)), 100);
+                                         ("quad_rope", (fun x -> ignore (Test_QR.test_mmult x x)),      100);
+                                         ("funky",     (fun x -> ignore (Test_Funky.test_mmult x x)),   100)] in
   tabulate res
+
+
+let benchmark_pearsons () =
+  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_pearsons x x), 400);
+                                         ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      400);
+                                         ("funky",     (fun x -> Test_Funky.test_pearsons x x),   400)] in
+  tabulate res
+
+
+let () =
+  print_endline "=== Matrix Multiplication ======";
+  benchmark_mmult ();
+  print_endline "=== Pearsons ===================";
+  benchmark_pearsons ()

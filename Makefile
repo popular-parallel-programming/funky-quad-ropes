@@ -3,6 +3,10 @@
 all:
 	jbuilder build funky.exe
 
+bc:
+	jbuilder build funky.bc
+
+
 clean:
 	jbuilder clean
 

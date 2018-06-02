@@ -138,17 +138,24 @@ module QuadRope =
       | VCat (q1, q2) -> cols q1 (* cols q1 = cols q2 *)
       | Sparse (_, c, _) -> c
 
+    let max_size = 32
 
     let hcat q1 q2 =
       if rows q1 = rows q2 then
-        HCat (q1, q2)
+        match q1, q2 with
+        | Leaf l1, Leaf l2 when cols q1 + cols q2 <= max_size ->
+           Leaf (Array2D.hcat l1 l2)
+        | _ -> HCat (q1, q2)
       else
         failwith "not same number of rows"
 
 
     let vcat q1 q2 =
       if cols q1 = cols q2 then
-        VCat (q1, q2)
+        match q1, q2 with
+        | Leaf l1, Leaf l2 when rows q1 + rows q2 <= max_size ->
+           Leaf (Array2D.vcat l1 l2)
+        | _ -> VCat (q1, q2)
       else
         failwith "not same number of columns"
 
@@ -163,7 +170,6 @@ module QuadRope =
 
 
     let init rows cols f =
-      let max_size = 32 in
       let rec init row_off col_off rows cols =
         if rows < max_size && cols < max_size then
           Leaf (Array2D.init rows cols (fun r c -> f (r + row_off) (c + col_off)))

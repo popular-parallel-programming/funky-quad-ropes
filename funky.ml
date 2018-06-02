@@ -327,7 +327,7 @@ module Test(M : Collection2D) =
       pearsons xs ys
 
 
-    let vdc_sum n =
+    let test_vdc n =
       let singleton =
         fun x -> M.init 1 1 (fun _ _ -> x) in
       let next =
@@ -339,10 +339,7 @@ module Test(M : Collection2D) =
           let n' = 2. ** -.n in
           next n' (vdc (n -. 1.))
       in
-      sum (vdc n)
-
-
-    let test_vdc n = vdc_sum (float n)
+      sum (vdc (float n))
   end
 
 
@@ -367,7 +364,7 @@ let benchmark_vdc () =
 
 
 let () =
-  (* print_endline "=== Pearsons ===================";
-   * benchmark_pearsons (); *)
+  print_endline "=== Pearsons ===================";
+  benchmark_pearsons ();
   print_endline "=== Van der Corput =============";
   benchmark_vdc ();

@@ -17,12 +17,12 @@ module type Collection2D =
     val get : 'a t -> int -> int -> 'a
     val rows : _ t -> int
     val cols : _ t -> int
+    val hcat : 'a t -> 'a t -> 'a t
+    val vcat : 'a t -> 'a t -> 'a t
     val map : ('a -> 'b) -> 'a t -> 'b t
     val zipWith : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
-    val slice : 'a t -> int -> int -> int -> int -> 'a t
     val map_reduce : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a t -> 'b
     val reduce : ('a -> 'a -> 'a) -> 'a -> 'a t -> 'a
-    val transpose : 'a t -> 'a t
   end
 
 
@@ -38,6 +38,40 @@ module Array2D =
 
     let get (xss : _ t) i j =
       Array.get (Array.get xss i) j
+
+    let rows (xss : _ t) =
+      Array.length xss
+
+
+    let cols (xss : _ t) = (* Assume all columns are of equal length. *)
+      if rows xss = 0 then 0 else Array.length $ Array.get xss 0
+
+
+    let hcat xss yss =
+      if rows xss = rows yss then
+        init (rows xss)
+             (cols xss + cols yss)
+             (fun r c ->
+               if c < cols xss then
+                 get xss r c
+               else
+                 get yss r (c - cols xss))
+      else
+        failwith "not same number of rows"
+
+
+    let vcat xss yss =
+      if cols xss = cols yss then
+        init (rows xss + rows yss)
+             (cols xss)
+             (fun r c ->
+               if r < rows xss then
+                 get xss r c
+               else
+                 get yss (r - rows xss) c)
+      else
+        failwith "not same number of columns"
+
 
 
     let map f xss : _ t =
@@ -56,18 +90,6 @@ module Array2D =
       mapi (fun i j x -> f i j x (get xss1 i j)) xss0
 
 
-    let rows (xss : _ t) =
-      Array.length xss
-
-
-    let cols (xss : _ t) = (* Assume all columns are of equal length. *)
-      if rows xss = 0 then 0 else Array.length $ Array.get xss 0
-
-
-    let slice (xss : _ t) r0 r1 c0 c1 =
-      init r1 c1 $ fun r c -> get xss (r0 + r) (c0 + c)
-
-
     let mapi_reduce (f : int -> int -> 'a -> 'b) (g : 'b -> 'b -> 'b) (e : 'b) (xss : 'a t) : 'b =
       let acc = ref e in
       for r = 0 to rows xss - 1 do
@@ -84,9 +106,6 @@ module Array2D =
 
     let reduce f =
       mapi_reduce (fun _ _ x -> x) f
-
-    let transpose xs =
-      init (cols xs) (rows xs) (fun c r -> get xs r c)
   end
 
 
@@ -124,14 +143,14 @@ module QuadRope =
       if rows q1 = rows q2 then
         HCat (q1, q2)
       else
-        failwith "Not same number of rows"
+        failwith "not same number of rows"
 
 
     let vcat q1 q2 =
       if cols q1 = cols q2 then
         VCat (q1, q2)
       else
-        failwith "Not same number of columns"
+        failwith "not same number of columns"
 
 
     let rec get q r c =
@@ -192,7 +211,6 @@ module QuadRope =
     let replicate rows cols x =
       Sparse (max 0 rows, max 0 cols, x)
 
-
     let mapi_reduce f g e q =
       let sparse_loop rows cols x r0 c0 f g e =
         let acc = ref e in
@@ -225,27 +243,6 @@ module QuadRope =
 
     let reduce f =
       map_reduce (fun x -> x) f
-
-
-    let rec slice : 'a . 'a quad_rope -> int -> int -> int -> int -> 'a quad_rope = fun q r0 c0 r1 c1 ->
-      let r0, c0 = max 0 r0, max 0 c0 in
-      let r1, c1 = min (rows q - r0) (max 0 r1), min (cols q - c0) (max 0 c1) in
-      match q with
-      | Funk (f, p, thunk) -> mapi f $ slice p r0 c0 r1 c1
-      | Leaf xss -> Leaf (Array2D.slice xss r0 c0 r1 c1)
-      | HCat (q1, q2) ->
-         let q1' = slice q1 r0 c0 r1 c1 in
-         let q2' = slice q2 r0 (c0 - cols q1) r1 (c1 - cols q1') in
-         hcat q1' q2'
-      | VCat (q1, q2) ->
-         let q1' = slice q1 r0 c0 r1 c1 in
-         let q2' = slice q2 (r0 - rows q1) c0 (r1 - rows q1') c1 in
-         vcat q1' q2'
-      | Sparse (_, _, x) -> replicate r1 c1 x
-
-
-    let transpose q =
-      init (cols q) (rows q) (fun c r -> get q r c)
   end
 
 
@@ -259,6 +256,8 @@ module Funky =
     let rows = QuadRope.rows
     let cols = QuadRope.cols
     let get = QuadRope.get
+    let hcat = QuadRope.hcat
+    let vcat = QuadRope.vcat
 
     let rec mapi : 'a 'b . (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
       fun f -> (function
@@ -280,17 +279,6 @@ module Funky =
       mapi g p
 
 
-    let slice q r0 c0 r1 c1 =
-      match q with
-      | Funk (f, p, thunk) ->
-         if Lazy.is_val thunk then
-           QuadRope.slice (Lazy.force thunk) r0 c0 r1 c1
-         else
-           let p' = slice p r0 c0 r1 c1 in
-           Funk (f, p', lazy (mapi f p'))
-      | _ -> QuadRope.slice q r0 c0 r1 c1
-
-
     let zipWithi f q1 q2 =
       let g =
       (match q1 with
@@ -310,8 +298,6 @@ module Funky =
     let mapi_reduce = QuadRope.mapi_reduce
     let map_reduce  = QuadRope.map_reduce
     let reduce      = QuadRope.reduce
-
-    let transpose = QuadRope.transpose
   end
 
 
@@ -321,15 +307,6 @@ module Test(M : Collection2D) =
 
     let sum =
       M.reduce ( +. ) 0.
-
-    let mmult lm rm =
-      let trm =  M.transpose rm in
-      M.init (M.rows lm)
-             (M.cols rm)
-             (fun i j ->
-               let lr = M.slice lm  i 0 1 (M.cols lm) in
-               let rr = M.slice trm j 0 1 (M.cols trm) in
-               sum (M.zipWith ( *. ) lr rr))
 
 
     let pearsons xs ys =
@@ -344,14 +321,28 @@ module Test(M : Collection2D) =
       (sum (M.zipWith ( *.) x_err y_err)) /. (sqrt (sum x_sqerr) *. sqrt (sum y_sqerr))
 
 
-    let test f rows cols =
+    let test_pearsons rows cols =
       let xs = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
       let ys = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
-      f xs ys
+      pearsons xs ys
 
-    let test_mmult = test mmult
-    let test_pearsons = test pearsons
 
+    let vdc_sum n =
+      let singleton =
+        fun x -> M.init 1 1 (fun _ _ -> x) in
+      let next =
+        fun i is -> M.hcat is (M.hcat (singleton i) (M.map (( +. ) i) is)) in
+      let rec vdc n =
+        if n <= 1. then
+          singleton 0.5
+        else
+          let n' = 2. ** -.n in
+          next n' (vdc (n -. 1.))
+      in
+      sum (vdc n)
+
+
+    let test_vdc n = vdc_sum (float n)
   end
 
 
@@ -361,13 +352,6 @@ module Test_Funky   = Test(Funky)
 
 open Benchmark
 
-let benchmark_mmult () =
-  let res = latencyN (Int64.of_int 100) [("array2d",   (fun x -> ignore (Test_Array2D.test_mmult x x)), 100);
-                                         ("quad_rope", (fun x -> ignore (Test_QR.test_mmult x x)),      100);
-                                         ("funky",     (fun x -> ignore (Test_Funky.test_mmult x x)),   100)] in
-  tabulate res
-
-
 let benchmark_pearsons () =
   let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_pearsons x x), 400);
                                          ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      400);
@@ -375,8 +359,15 @@ let benchmark_pearsons () =
   tabulate res
 
 
+let benchmark_vdc () =
+  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_vdc x), 20);
+                                         ("quad_rope", (fun x -> Test_QR.test_vdc x),      20);
+                                         ("funky",     (fun x -> Test_Funky.test_vdc x),   20)] in
+  tabulate res
+
+
 let () =
-  print_endline "=== Matrix Multiplication ======";
-  benchmark_mmult ();
-  print_endline "=== Pearsons ===================";
-  benchmark_pearsons ()
+  (* print_endline "=== Pearsons ===================";
+   * benchmark_pearsons (); *)
+  print_endline "=== Van der Corput =============";
+  benchmark_vdc ();

@@ -301,9 +301,12 @@ module Funky =
 
 
     let init rows cols f =
-      let p = replicate rows cols () in
-      let g = fun r c _ -> f r c in
-      mapi g p
+      if rows <= QuadRope.max_size && cols <= QuadRope.max_size then
+        QuadRope.init rows cols f
+      else
+        let p = replicate rows cols () in
+        let g = fun r c _ -> f r c in
+        mapi g p
 
 
     let zipWithi f q1 q2 =

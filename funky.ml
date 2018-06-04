@@ -4,9 +4,6 @@ module Shim =
       fun x -> f (g x)
 
     let ($) f x = f x
-
-    let uncurry f =
-      fun (x, y) -> f x y
   end
 
 (* Signature for two-dimensional collections.  *)
@@ -24,6 +21,8 @@ module type Collection2D =
     val map_reduce : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a t -> 'b
     val reduce : ('a -> 'a -> 'a) -> 'a -> 'a t -> 'a
     val replicate : int -> int -> 'a -> 'a t
+    val slice : 'a t -> int -> int -> int -> int -> 'a t
+    val transpose : 'a t -> 'a t
   end
 
 
@@ -110,6 +109,12 @@ module Array2D =
 
     let replicate r c x =
       init r c (fun _ _ -> x)
+
+    let slice xs r c h w =
+      init h w (fun r' c' -> get xs (r + r') (c + c'))
+
+    let transpose xs =
+      init (cols xs) (rows xs) (fun c r -> get xs r c)
   end
 
 
@@ -207,7 +212,7 @@ module QuadRope =
 
 
     let zipWithi f q1 q2 =
-      if rows q1 <> cols q2 || cols q1 <> cols q2 then
+      if rows q1 <> rows q2 || cols q1 <> cols q2 then
         failwith "shape mismatch"
       else
         (* Cheap and slow; materializes Funk nodes. *)
@@ -253,6 +258,18 @@ module QuadRope =
 
     let reduce f =
       map_reduce (fun x -> x) f
+
+
+    let rec slice q i j h w =
+      init h w (fun r c -> get q (i + r) (j + c))
+
+
+    let rec transpose = function
+      | Leaf xs -> Leaf (Array2D.transpose xs)
+      | HCat (q1, q2) -> VCat (transpose q1, transpose q2)
+      | VCat (q1, q2) -> HCat (transpose q1, transpose q2)
+      | Sparse (r, c, x) -> Sparse (c, r, x)
+      | Funk (_, _, t) -> transpose $ Lazy.force_val t
   end
 
 
@@ -309,6 +326,19 @@ module Funky =
     let map_reduce  = QuadRope.map_reduce
     let reduce      = QuadRope.reduce
     let replicate   = QuadRope.replicate
+
+
+    let slice q i j h w =
+      match q with
+      | Funk (f, p, t) when not (Lazy.is_val t) ->
+         mapi (fun r c x -> f (r + i) (c + j) x) (QuadRope.slice p i j h w)
+      | _ -> QuadRope.slice q i j h w
+
+
+    let transpose = function
+      | Funk (f, p, t) when not (Lazy.is_val t) ->
+         mapi (fun c r x -> f r c x) (transpose p)
+      | q -> QuadRope.transpose q
   end
 
 
@@ -320,22 +350,25 @@ module Test(M : Collection2D) =
       M.reduce ( +. ) 0.
 
 
-    let pearsons xs ys =
-      let size = fun xs -> M.rows xs * M.cols xs in
-      let mean = fun xs -> M.reduce ( +. ) 0. xs /. float (size xs) in
-      let x_mean  = mean xs in
-      let y_mean  = mean ys in
-      let x_err   = M.map (fun x -> x -. x_mean) xs in
-      let y_err   = M.map (fun y -> y -. y_mean) ys in
-      let x_sqerr = M.map (fun x -> x -. x_mean ** 2.) xs in
-      let y_sqerr = M.map (fun y -> y -. y_mean ** 2.) ys in
-      (sum (M.zipWith ( *.) x_err y_err)) /. (sqrt (sum x_sqerr) *. sqrt (sum y_sqerr))
-
-
-    let test_pearsons rows cols =
+    let test_f f rows cols =
       let xs = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
       let ys = M.init rows cols (fun _ _ -> Random.float 1000. +. 1.) in
-      pearsons xs ys
+      f xs ys
+
+
+    let test_pearsons =
+      let pearsons xs ys =
+        let size = fun xs -> M.rows xs * M.cols xs in
+        let mean = fun xs -> M.reduce ( +. ) 0. xs /. float (size xs) in
+        let x_mean  = mean xs in
+        let y_mean  = mean ys in
+        let x_err   = M.map (fun x -> x -. x_mean) xs in
+        let y_err   = M.map (fun y -> y -. y_mean) ys in
+        let x_sqerr = M.map (fun x -> x -. x_mean ** 2.) xs in
+        let y_sqerr = M.map (fun y -> y -. y_mean ** 2.) ys in
+        (sum (M.zipWith ( *.) x_err y_err)) /. (sqrt (sum x_sqerr) *. sqrt (sum y_sqerr))
+      in
+      test_f pearsons
 
 
     let test_vdc n =
@@ -364,6 +397,19 @@ module Test(M : Collection2D) =
       in
       let primes = sieve 2 $ M.init 1 (n - 2) (fun _ m -> false, m + 2) in
       M.map_reduce (fun (f, m) -> if f then 0 else 1) ( + ) 0 primes
+
+
+    let test_mmult rows cols =
+      let mmult lm rm =
+        let trm = M.transpose rm in
+        M.init (M.rows lm)
+               (M.cols rm)
+               (fun i j ->
+                 let lr = M.slice lm i 0 1 (M.cols lm) in
+                 let rr = M.slice trm j 0 1 (M.cols trm) in
+                 sum (M.zipWith ( *. ) lr rr))
+      in
+      sum $ test_f mmult rows cols
   end
 
 
@@ -372,34 +418,68 @@ module Test_QR      = Test(QuadRope)
 module Test_Funky   = Test(Funky)
 
 open Benchmark
+open Printf
 
-let benchmark_pearsons () =
-  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_pearsons x x), 400);
-                                         ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      400);
-                                         ("funky",     (fun x -> Test_Funky.test_pearsons x x),   400)] in
+let benchmark =
+  latencyN ~repeat:10 ~fwidth:3
+
+
+let print_header s =
+  let width = 28 in
+  let pad = width - (String.length s + 1) in
+  Printf.printf "=== %s %s" s (String.make pad '=')
+
+
+let benchmark_pearsons n =
+  let res = benchmark 20L [("array2d",   (fun x -> Test_Array2D.test_pearsons x x), n);
+                           ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      n);
+                           ("funky",     (fun x -> Test_Funky.test_pearsons x x),   n)] in
   tabulate res
 
 
-let benchmark_vdc () =
-  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_vdc x), 20);
-                                         ("quad_rope", (fun x -> Test_QR.test_vdc x),      20);
-                                         ("funky",     (fun x -> Test_Funky.test_vdc x),   20)] in
+let benchmark_vdc n =
+  let res = benchmark 20L [("arr]ay2d",   (fun x -> Test_Array2D.test_vdc x), n);
+                           ("quad_rope", (fun x -> Test_QR.test_vdc x),      n);
+                           ("funky",     (fun x -> Test_Funky.test_vdc x),   n)] in
   tabulate res
 
 
-let benchmark_sieve () =
-  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_primes x), 500);
-                                         ("quad_rope", (fun x -> Test_QR.test_primes x),      500);
-                                         ("funky",     (fun x -> Test_Funky.test_primes x),   500)] in
+let benchmark_sieve n =
+  let res = benchmark 20L [("array2d",   (fun x -> Test_Array2D.test_primes x), n);
+                           ("quad_rope", (fun x -> Test_QR.test_primes x),      n);
+                           ("funky",     (fun x -> Test_Funky.test_primes x),   n)] in
+  tabulate res
+
+
+let benchmark_mmult n =
+  let res = benchmark 5L [("array2d",   (fun x -> Test_Array2D.test_mmult x x), n);
+                          ("quad_rope", (fun x -> Test_QR.test_mmult x x),      n);
+                          ("funky",     (fun x -> Test_Funky.test_mmult x x),   n)] in
   tabulate res
 
 
 
 
 let () =
-  print_endline "=== Pearsons ===================";
-  benchmark_pearsons ();
-  print_endline "=== Van der Corput =============";
-  benchmark_vdc ();
-  print_endline "=== Sieve ======================";
-  benchmark_sieve ();
+  print_header "Pearsons";
+  benchmark_pearsons 200;
+  benchmark_pearsons 300;
+  benchmark_pearsons 400;
+  benchmark_pearsons 500;
+
+  print_header "Van der Corput";
+  benchmark_vdc 17;
+  benchmark_vdc 18;
+  benchmark_vdc 19;
+  benchmark_vdc 20;
+
+  print_header "Primes";
+  benchmark_sieve 200;
+  benchmark_sieve 300;
+  benchmark_sieve 400;
+  benchmark_sieve 500;
+
+  print_header "Matrix Multiplication";
+  benchmark_mmult 100;
+  benchmark_mmult 200;
+  benchmark_mmult 300;

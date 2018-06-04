@@ -293,7 +293,7 @@ module Funky =
                      mapi f $ Lazy.force_val thunk
                    else
                      mapi (fun r c x -> f r c (g r c x)) q
-                | q -> Funk (f, q, lazy (mapi f q)))
+                | q -> Funk (f, q, lazy (QuadRope.mapi f q)))
 
 
     let map f =

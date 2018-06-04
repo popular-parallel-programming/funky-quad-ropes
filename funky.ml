@@ -23,6 +23,7 @@ module type Collection2D =
     val zipWith : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
     val map_reduce : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'b -> 'a t -> 'b
     val reduce : ('a -> 'a -> 'a) -> 'a -> 'a t -> 'a
+    val replicate : int -> int -> 'a -> 'a t
   end
 
 
@@ -106,6 +107,9 @@ module Array2D =
 
     let reduce f =
       mapi_reduce (fun _ _ x -> x) f
+
+    let replicate r c x =
+      init r c (fun _ _ -> x)
   end
 
 
@@ -304,6 +308,7 @@ module Funky =
     let mapi_reduce = QuadRope.mapi_reduce
     let map_reduce  = QuadRope.map_reduce
     let reduce      = QuadRope.reduce
+    let replicate   = QuadRope.replicate
   end
 
 
@@ -346,6 +351,19 @@ module Test(M : Collection2D) =
           next n' (vdc (n -. 1.))
       in
       sum (vdc (float n))
+
+
+    let test_primes n =
+      let rec sieve p ns =
+        if n <= 2 then
+          M.replicate 0 0 (false, 0)
+        else if p = n then
+          ns
+        else
+          sieve (p + 1) (M.map (fun (f, m) -> f || (m <> p && m mod p = 0), m) ns)
+      in
+      let primes = sieve 2 $ M.init 1 (n - 2) (fun _ m -> false, m + 2) in
+      M.map_reduce (fun (f, m) -> if f then 0 else 1) ( + ) 0 primes
   end
 
 
@@ -369,8 +387,19 @@ let benchmark_vdc () =
   tabulate res
 
 
+let benchmark_sieve () =
+  let res = latencyN (Int64.of_int 200) [("array2d",   (fun x -> Test_Array2D.test_primes x), 500);
+                                         ("quad_rope", (fun x -> Test_QR.test_primes x),      500);
+                                         ("funky",     (fun x -> Test_Funky.test_primes x),   500)] in
+  tabulate res
+
+
+
+
 let () =
   print_endline "=== Pearsons ===================";
   benchmark_pearsons ();
   print_endline "=== Van der Corput =============";
   benchmark_vdc ();
+  print_endline "=== Sieve ======================";
+  benchmark_sieve ();

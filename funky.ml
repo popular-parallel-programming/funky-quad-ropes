@@ -421,38 +421,38 @@ open Benchmark
 open Printf
 
 let benchmark =
-  latencyN ~repeat:10 ~fwidth:3
+  latencyN ~repeat:5 ~fwidth:3
 
 
 let print_header s =
   let width = 28 in
   let pad = width - (String.length s + 1) in
-  Printf.printf "=== %s %s" s (String.make pad '=')
+  Printf.printf "=== %s %s\n" s (String.make pad '=')
 
 
-let benchmark_pearsons n =
-  let res = benchmark 20L [("array2d",   (fun x -> Test_Array2D.test_pearsons x x), n);
-                           ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      n);
-                           ("funky",     (fun x -> Test_Funky.test_pearsons x x),   n)] in
+let benchmark_pearsons it n =
+  let res = benchmark it [(* ("array2d",   (fun x -> Test_Array2D.test_pearsons x x), n); *)
+                          ("quad_rope", (fun x -> Test_QR.test_pearsons x x),      n);
+                          ("funky",     (fun x -> Test_Funky.test_pearsons x x),   n)] in
   tabulate res
 
 
-let benchmark_vdc n =
-  let res = benchmark 20L [("arr]ay2d",   (fun x -> Test_Array2D.test_vdc x), n);
-                           ("quad_rope", (fun x -> Test_QR.test_vdc x),      n);
-                           ("funky",     (fun x -> Test_Funky.test_vdc x),   n)] in
+let benchmark_vdc it n =
+  let res = benchmark it [(* ("array2d",   (fun x -> Test_Array2D.test_vdc x), n); *)
+                          ("quad_rope", (fun x -> Test_QR.test_vdc x),      n);
+                          ("funky",     (fun x -> Test_Funky.test_vdc x),   n)] in
   tabulate res
 
 
-let benchmark_sieve n =
-  let res = benchmark 20L [("array2d",   (fun x -> Test_Array2D.test_primes x), n);
-                           ("quad_rope", (fun x -> Test_QR.test_primes x),      n);
-                           ("funky",     (fun x -> Test_Funky.test_primes x),   n)] in
+let benchmark_sieve it n =
+  let res = benchmark it [(* ("array2d",   (fun x -> Test_Array2D.test_primes x), n); *)
+                          ("quad_rope", (fun x -> Test_QR.test_primes x),      n);
+                          ("funky",     (fun x -> Test_Funky.test_primes x),   n)] in
   tabulate res
 
 
-let benchmark_mmult n =
-  let res = benchmark 5L [("array2d",   (fun x -> Test_Array2D.test_mmult x x), n);
+let benchmark_mmult it n =
+  let res = benchmark it [(* ("array2d",   (fun x -> Test_Array2D.test_mmult x x), n); *)
                           ("quad_rope", (fun x -> Test_QR.test_mmult x x),      n);
                           ("funky",     (fun x -> Test_Funky.test_mmult x x),   n)] in
   tabulate res
@@ -461,25 +461,38 @@ let benchmark_mmult n =
 
 
 let () =
-  print_header "Pearsons";
-  benchmark_pearsons 200;
-  benchmark_pearsons 300;
-  benchmark_pearsons 400;
-  benchmark_pearsons 500;
+  match (fun xs -> try Some xs.(1) with | _ -> None ) Sys.argv with
+  | Some "pearsons" ->
+     print_header "Pearsons";
+     benchmark_pearsons 400L 100;
+     benchmark_pearsons 200L 200;
+     benchmark_pearsons 100L 300;
+     benchmark_pearsons 50L 400;
+     benchmark_pearsons 50L 500;
 
-  print_header "Van der Corput";
-  benchmark_vdc 17;
-  benchmark_vdc 18;
-  benchmark_vdc 19;
-  benchmark_vdc 20;
+  | Some "vdc" ->
+     print_header "Van der Corput";
+     benchmark_vdc 200L 17;
+     benchmark_vdc 100L 18;
+     benchmark_vdc 50L 19;
+     benchmark_vdc 25L 20;
+     benchmark_vdc 10L 21;
 
-  print_header "Primes";
-  benchmark_sieve 200;
-  benchmark_sieve 300;
-  benchmark_sieve 400;
-  benchmark_sieve 500;
+  | Some "primes" ->
+     print_header "Primes";
+     benchmark_sieve 100L 1000;
+     benchmark_sieve 25L  2000;
+     benchmark_sieve 10L  3000;
+     benchmark_sieve 5L   4000;
+     benchmark_sieve 5L   5000;
 
-  print_header "Matrix Multiplication";
-  benchmark_mmult 100;
-  benchmark_mmult 200;
-  benchmark_mmult 300;
+  | Some "mmult" ->
+     print_header "Matrix Multiplication";
+     benchmark_mmult 10L 100;
+     benchmark_mmult 5L  200;
+     benchmark_mmult 5L 300;
+     benchmark_mmult 5L 400;
+     benchmark_mmult 5L 500;
+
+  | _ ->
+     print_endline "Choose one of: pearsons, vdc, primes, mmult.";

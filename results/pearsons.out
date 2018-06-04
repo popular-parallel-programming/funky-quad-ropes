@@ -1,0 +1,74 @@
+=== Pearsons ===================
+Latencies for 400 iterations of "quad_rope", "funky" (5 runs):
+quad_rope: 1.38 WALL (1.37 usr + 0.00 sys = 1.37 CPU) @ 292.40/s (n=400)
+           1.49 WALL (1.48 usr + 0.00 sys = 1.48 CPU) @ 269.54/s (n=400)
+           1.29 WALL (1.29 usr + 0.00 sys = 1.29 CPU) @ 310.56/s (n=400)
+           1.39 WALL (1.39 usr + 0.00 sys = 1.39 CPU) @ 288.18/s (n=400)
+           1.37 WALL (1.37 usr + 0.00 sys = 1.37 CPU) @ 292.40/s (n=400)
+    funky: 1.04 WALL (1.03 usr + 0.00 sys = 1.03 CPU) @ 387.60/s (n=400)
+           1.05 WALL (1.04 usr + 0.00 sys = 1.04 CPU) @ 383.14/s (n=400)
+           0.90 WALL (0.90 usr + 0.00 sys = 0.90 CPU) @ 442.48/s (n=400)
+           (warning: too few iterations for a reliable count)
+           0.88 WALL (0.88 usr + 0.00 sys = 0.88 CPU) @ 454.55/s (n=400)
+           (warning: too few iterations for a reliable count)
+           0.87 WALL (0.87 usr + 0.00 sys = 0.87 CPU) @ 458.72/s (n=400)
+           (warning: too few iterations for a reliable count)
+           Rate     quad_rope     funky
+quad_rope 291+-12/s        --      -32%
+    funky 425+-31/s       46%        --
+Latencies for 200 iterations of "quad_rope", "funky" (5 runs):
+quad_rope: 4.53 WALL (4.52 usr + 0.00 sys = 4.52 CPU) @ 44.21/s (n=200)
+           4.18 WALL (4.18 usr + 0.00 sys = 4.18 CPU) @ 47.89/s (n=200)
+           4.49 WALL (4.49 usr + 0.00 sys = 4.49 CPU) @ 44.56/s (n=200)
+           4.28 WALL (4.28 usr + 0.00 sys = 4.28 CPU) @ 46.69/s (n=200)
+           3.99 WALL (3.99 usr + 0.00 sys = 3.99 CPU) @ 50.15/s (n=200)
+    funky: 1.73 WALL (1.73 usr + 0.00 sys = 1.73 CPU) @ 115.47/s (n=200)
+           1.74 WALL (1.74 usr + 0.00 sys = 1.74 CPU) @ 114.94/s (n=200)
+           1.81 WALL (1.81 usr + 0.00 sys = 1.81 CPU) @ 110.38/s (n=200)
+           1.73 WALL (1.73 usr + 0.00 sys = 1.73 CPU) @ 115.47/s (n=200)
+           1.85 WALL (1.85 usr + 0.00 sys = 1.85 CPU) @ 107.99/s (n=200)
+            Rate      quad_rope     funky
+quad_rope 46.7+-2.1/s        --      -59%
+    funky  113+-  3/s      142%        --
+Latencies for 100 iterations of "quad_rope", "funky" (5 runs):
+quad_rope: 10.36 WALL (10.35 usr + 0.00 sys = 10.35 CPU) @ 9.66/s (n=100)
+           7.97 WALL (7.97 usr + 0.00 sys = 7.97 CPU) @ 12.54/s (n=100)
+           8.31 WALL (8.30 usr + 0.00 sys = 8.30 CPU) @ 12.04/s (n=100)
+           8.17 WALL (8.17 usr + 0.00 sys = 8.17 CPU) @ 12.24/s (n=100)
+           8.32 WALL (8.32 usr + 0.00 sys = 8.32 CPU) @ 12.02/s (n=100)
+    funky: 2.06 WALL (2.05 usr + 0.00 sys = 2.05 CPU) @ 48.73/s (n=100)
+           2.03 WALL (2.03 usr + 0.00 sys = 2.03 CPU) @ 49.31/s (n=100)
+           2.00 WALL (2.00 usr + 0.00 sys = 2.00 CPU) @ 50.00/s (n=100)
+           2.08 WALL (2.07 usr + 0.00 sys = 2.07 CPU) @ 48.26/s (n=100)
+           2.08 WALL (2.08 usr + 0.00 sys = 2.08 CPU) @ 48.08/s (n=100)
+            Rate      quad_rope     funky
+quad_rope 11.7+-1.0/s        --      -76%
+    funky 48.9+-0.7/s      318%        --
+Latencies for 50 iterations of "quad_rope", "funky" (5 runs):
+quad_rope: 7.63 WALL (7.62 usr + 0.00 sys = 7.62 CPU) @ 6.56/s (n=50)
+           8.16 WALL (8.16 usr + 0.00 sys = 8.16 CPU) @ 6.13/s (n=50)
+           8.05 WALL (8.05 usr + 0.00 sys = 8.05 CPU) @ 6.21/s (n=50)
+           8.08 WALL (8.07 usr + 0.00 sys = 8.08 CPU) @ 6.19/s (n=50)
+           8.06 WALL (8.05 usr + 0.00 sys = 8.05 CPU) @ 6.21/s (n=50)
+    funky: 1.99 WALL (1.98 usr + 0.00 sys = 1.98 CPU) @ 25.20/s (n=50)
+           1.94 WALL (1.94 usr + 0.00 sys = 1.94 CPU) @ 25.83/s (n=50)
+           1.82 WALL (1.82 usr + 0.00 sys = 1.82 CPU) @ 27.47/s (n=50)
+           1.81 WALL (1.81 usr + 0.00 sys = 1.81 CPU) @ 27.59/s (n=50)
+           1.76 WALL (1.76 usr + 0.00 sys = 1.76 CPU) @ 28.47/s (n=50)
+            Rate       quad_rope     funky
+quad_rope 6.26+-0.14/s        --      -77%
+    funky 26.9+- 1.1/s      330%        --
+Latencies for 50 iterations of "quad_rope", "funky" (5 runs):
+quad_rope: 11.19 WALL (11.19 usr + 0.00 sys = 11.19 CPU) @ 4.47/s (n=50)
+           11.70 WALL (11.70 usr + 0.00 sys = 11.70 CPU) @ 4.27/s (n=50)
+           11.50 WALL (11.50 usr + 0.00 sys = 11.50 CPU) @ 4.35/s (n=50)
+           11.80 WALL (11.80 usr + 0.00 sys = 11.80 CPU) @ 4.24/s (n=50)
+           11.49 WALL (11.48 usr + 0.00 sys = 11.48 CPU) @ 4.35/s (n=50)
+    funky: 2.90 WALL (2.90 usr + 0.00 sys = 2.90 CPU) @ 17.27/s (n=50)
+           2.94 WALL (2.94 usr + 0.00 sys = 2.94 CPU) @ 17.03/s (n=50)
+           2.90 WALL (2.89 usr + 0.00 sys = 2.89 CPU) @ 17.29/s (n=50)
+           2.80 WALL (2.79 usr + 0.00 sys = 2.79 CPU) @ 17.91/s (n=50)
+           2.68 WALL (2.68 usr + 0.00 sys = 2.68 CPU) @ 18.63/s (n=50)
+            Rate       quad_rope     funky
+quad_rope 4.34+-0.08/s        --      -75%
+    funky 17.6+- 0.6/s      306%        --

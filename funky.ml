@@ -171,7 +171,7 @@ module QuadRope =
 
     let rec get q r c =
       match q with
-      | Funk (_, _, thunk) -> get (Lazy.force_val thunk) r c
+      | Funk (_, _, thunk) -> get (Lazy.force thunk) r c
       | Leaf xss           -> Array2D.get xss r c
       | HCat (q1, q2)      -> if c < cols q1 then get q1 r c else get q2 r (c - cols q1)
       | VCat (q1, q2)      -> if r < rows q1 then get q1 r c else get q2 (r - rows q1) c
@@ -196,7 +196,7 @@ module QuadRope =
         fun r0 c0 f -> (function
                         | Funk (g, q, thunk) ->
                            if Lazy.is_val thunk then
-                             mapi_i r0 c0 f $ Lazy.force_val thunk
+                             mapi_i r0 c0 f $ Lazy.force thunk
                            else
                              let k = fun r c x -> f r c (g r c x) in
                              mapi_i r0 c0 k q
@@ -241,7 +241,7 @@ module QuadRope =
         (function
          | Funk (k, q, thunk) ->
             if Lazy.is_val thunk then
-              mapi_reduce_i r0 c0 f g e $ Lazy.force_val thunk
+              mapi_reduce_i r0 c0 f g e $ Lazy.force thunk
             else
               let h = fun r c x -> f r c (k r c x) in
               mapi_reduce_i r0 c0 h g e q
@@ -269,7 +269,7 @@ module QuadRope =
       | HCat (q1, q2) -> VCat (transpose q1, transpose q2)
       | VCat (q1, q2) -> HCat (transpose q1, transpose q2)
       | Sparse (r, c, x) -> Sparse (c, r, x)
-      | Funk (_, _, t) -> transpose $ Lazy.force_val t
+      | Funk (_, _, t) -> transpose $ Lazy.force t
   end
 
 
@@ -286,11 +286,12 @@ module Funky =
     let hcat = QuadRope.hcat
     let vcat = QuadRope.vcat
 
+
     let rec mapi : 'a 'b . (int -> int -> 'a -> 'b) -> 'a quad_rope -> 'b quad_rope =
       fun f -> (function
                 | Funk (g, q, thunk) ->
                    if Lazy.is_val thunk then
-                     mapi f $ Lazy.force_val thunk
+                     mapi f $ Lazy.force thunk
                    else
                      mapi (fun r c x -> f r c (g r c x)) q
                 | q -> Funk (f, q, lazy (QuadRope.mapi f q)))
